@@ -78,7 +78,9 @@ public class MainActivity extends Activity {
     ImageButton btn,btnNext,btnBack,btnVolUp,btnVolDown;
     AudioManager audioManager = null;
     ArrayList<String> fileLists = new ArrayList<String>();
-//    Handler handler = new Handler(){
+    private MediaSessionCompat mMediaSession = null;
+
+    //    Handler handler = new Handler(){
 //        public void handleMessage(android.os.Message msg) {
 //            if(msg.what == TIMEOVER )
 //            {
@@ -265,6 +267,50 @@ public class MainActivity extends Activity {
                 }
             }
         }, new IntentFilter(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)); //蓝牙耳机连接状态
+
+        ComponentName mbr = new ComponentName(getPackageName(),MediaButtonReceiver.class.getName());
+        mMediaSession = new MediaSessionCompat(this,"mbr",mbr,null);
+        mMediaSession.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS |
+                MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
+        if(!mMediaSession.isActive()){
+            mMediaSession.setActive(true);
+        }
+        mMediaSession.setCallback(new MediaSessionCompat.Callback() {
+            @Override
+            public boolean onMediaButtonEvent(Intent mediaButtonEvent) {
+                    String action = intent.getAction();
+                    if (action != null) {
+                        if (TextUtils.equals(action, Intent.ACTION_MEDIA_BUTTON)) {
+                            KeyEvent keyEvent = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                            if (keyEvent != null) {
+                                if (keyEvent.getAction() == KeyEvent.ACTION_DOWN) {
+                                    int keyCode = keyEvent.getKeyCode();
+                                    switch (keyCode) {
+                                        //可以通过广播形式通知Activity更新UI
+                                        case KeyEvent.KEYCODE_MEDIA_PLAY:
+                                            //Toast.makeText(MainActivity.this, "onReceive: 播放", Toast.LENGTH_SHORT).show();
+                                            break;
+                                        case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                                            if(mPlayer != null)
+                                                mPlayer.pause();
+                                            //Toast.makeText(MainActivity.this, "onReceive: 暂停", Toast.LENGTH_SHORT).show();
+                                            break;
+                                        case KeyEvent.KEYCODE_MEDIA_NEXT:
+                                            playNext();
+                                            //Toast.makeText(MainActivity.this, "onReceive: 下一首", Toast.LENGTH_SHORT).show();
+                                            break;
+                                        case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                                            playPre();
+                                            //Toast.makeText(MainActivity.this, "onReceive: 上一首", Toast.LENGTH_SHORT).show();
+                                            break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                return super.onMediaButtonEvent(mediaButtonEvent);
+            }
+        });
     }
 
     @Override
