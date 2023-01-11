@@ -238,17 +238,33 @@ public class MainActivity extends Activity {
             getFileList();
         }
 
-//        mReceiver = new HeadSetReceiver();
-//        IntentFilter intentFilter = new IntentFilter();
-//        intentFilter.addAction(Intent.ACTION_HEADSET_PLUG);
-//        intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
-//        registerReceiver(mReceiver, intentFilter);
-        //Log.d(TAG, "registerReceiver  ACTION_CONNECTION_STATE_CHANGED");
+        mReceiver = new HeadSetReceiver();
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_HEADSET_PLUG);
+        intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
+        registerReceiver(mReceiver, intentFilter);
+        Log.d(TAG, "registerReceiver  ACTION_CONNECTION_STATE_CHANGED");
 
 //        AudioManager audiomanage = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
 //        PackageManager packageManager = getPackageManager();
 //        //packageManager.setComponentEnabledSetting(PackageManager.COMPONENT_ENABLED_STATE_ENABLED,packageManager.DONT_KILL_APP);
 //        MediaSessionCompat mediaSessionCompat = MediaSessionCompat.fromMediaSession(this,"mbr");
+
+        registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                Log.d(TAG, "onReceive: "+action);
+                int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE,0);
+                if(action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED) && state == BluetoothAdapter.STATE_DISCONNECTED){
+                    if(mPlayer != null) {
+                        mPlayer.pause();
+                        BitmapDrawable drawable = (BitmapDrawable) getResources().getDrawable(R.drawable.player_play);
+                        btn.setImageBitmap(drawable.getBitmap());
+                    }
+                }
+            }
+        }, new IntentFilter(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)); //蓝牙耳机连接状态
     }
 
     @Override
@@ -465,18 +481,24 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            Log.d(TAG, "onReceive: "+action);
+            //Log.d(TAG, "onReceive: "+action);
             if (BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED.equals(action)) {
                 BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
                 Log.d(TAG, "onReceive: "+adapter.getProfileConnectionState(BluetoothProfile.HEADSET));
                 if (BluetoothProfile.STATE_DISCONNECTED == adapter.getProfileConnectionState(BluetoothProfile.HEADSET)) {
                     //Log.d(TAG, "onReceive: STATE_DISCONNECTED");
-                    if(mPlayer != null)
+                    if(mPlayer != null){
                         mPlayer.pause();
+                        BitmapDrawable drawable = (BitmapDrawable) getResources().getDrawable(R.drawable.player_play);
+                        btn.setImageBitmap(drawable.getBitmap());
+                    }
                 }else if (BluetoothProfile.STATE_CONNECTED == adapter.getProfileConnectionState(BluetoothProfile.HEADSET)) {
                     //Log.d(TAG, "onReceive: STATE_CONNECTED");
-                    if(mPlayer != null)
+                    if(mPlayer != null) {
                         mPlayer.start();
+                        BitmapDrawable drawable = (BitmapDrawable) getResources().getDrawable(R.drawable.player_pause);
+                        btn.setImageBitmap(drawable.getBitmap());
+                    }
                 }
 
             } else if ("android.intent.action.HEADSET_PLUG".equals(action)) { //耳机插入
