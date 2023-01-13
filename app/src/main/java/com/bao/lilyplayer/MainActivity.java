@@ -58,15 +58,24 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import androidx.media.session.MediaButtonReceiver;
+
+import com.hjq.permissions.OnPermissionCallback;
+import com.hjq.permissions.Permission;
+import com.hjq.permissions.XXPermissions;
+
+import javax.xml.xpath.XPathExpression;
+
 
 public class MainActivity extends Activity {
 
     private static final String TAG = "LilyPlayer";
     private int TIMEOVER = 100;
 
-    private HeadSetReceiver mReceiver;
+    private HeadSetReceiver mReceiver = null;
     private MediaPlayer mPlayer = null;
     String curPlayFile = "";
     CheckBox cb1,cb2,cbRadon;
@@ -80,21 +89,32 @@ public class MainActivity extends Activity {
     ArrayList<String> fileLists = new ArrayList<String>();
     private MediaSessionCompat mMediaSession = null;
 
-    //    Handler handler = new Handler(){
-//        public void handleMessage(android.os.Message msg) {
-//            if(msg.what == TIMEOVER )
-//            {
-//                seekBar.setProgress(mPlayer.getCurrentPosition());
-//                tv2.setText(mPlayer.getCurrentPosition() / 1000 + "/" + mPlayer.getDuration() / 1000);
-//            }
-//        };
-//    };
+    BroadcastReceiver mBtReceiver = null;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-//		requestWindowFeature(Window.FEATURE_NO_TITLE);
+        //		requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.activity_main);
+
+        XXPermissions.with(this)
+//                .permission(Permission.READ_EXTERNAL_STORAGE)
+//                .permission(Permission.WRITE_EXTERNAL_STORAGE)
+                .permission(Permission.MANAGE_EXTERNAL_STORAGE)
+                .permission(Permission.BLUETOOTH_CONNECT)
+                .permission(Permission.BLUETOOTH_ADVERTISE)
+                .request(new OnPermissionCallback() {
+                            @Override
+                            public void onGranted(List<String> permissions, boolean all) {
+                                //Toast.makeText(MainActivity.this, "权限获取成功", Toast.LENGTH_SHORT).show();
+                            }
+
+                    @Override
+                    public void onDenied(List<String> permissions, boolean never) {
+                        Toast.makeText(MainActivity.this, "权限获取失败", Toast.LENGTH_SHORT).show();
+                    }
+                });
 
         mPlayer = new MediaPlayer();
         mPlayer.setOnCompletionListener(new NextAudio());
@@ -105,6 +125,7 @@ public class MainActivity extends Activity {
         btnBack = (ImageButton)findViewById(R.id.imageButtonBack);
         btnVolDown = (ImageButton)findViewById(R.id.imageVolDown);
         btnVolUp = (ImageButton)findViewById(R.id.imageVolUp);
+
         tv = (TextView) findViewById(R.id.textView1);
         tv2 = (TextView) findViewById(R.id.textView2);
         cb1 = (CheckBox) findViewById(R.id.checkBox1);
@@ -205,54 +226,45 @@ public class MainActivity extends Activity {
             return;
         }
         Log.d(TAG, uri.toString());
-        String fileName = "";// = Uri.decode(uri.toString()).substring(7);
-        if("content".equalsIgnoreCase(uri.getScheme())){
-            String[] projection = {"_data"};
-            Cursor cursor = null;
-            try {
-                cursor = this.getContentResolver().query(uri, projection, null, null, null);
-                int column_index = cursor.getColumnIndexOrThrow("_data");
-                if (cursor.moveToFirst()) {
-                    fileName = cursor.getString(column_index);
+        try {
+            String fileName = "";// = Uri.decode(uri.toString()).substring(7);
+            if ("content".equalsIgnoreCase(uri.getScheme())) {
+                String[] projection = {"_data"};
+                Cursor cursor = null;
+                try {
+                    cursor = this.getContentResolver().query(uri, projection, null, null, null);
+                    int column_index = cursor.getColumnIndexOrThrow("_data");
+                    if (cursor.moveToFirst()) {
+                        fileName = cursor.getString(column_index);
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
                 }
-            } catch (Exception e) {
-                Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show();
+            } else if ("file".equalsIgnoreCase(uri.getScheme())) {
+                fileName = uri.getPath();
             }
-        }else if ("file".equalsIgnoreCase(uri.getScheme())) {
-            fileName =  uri.getPath();
-        }
 
-        verifyStoragePermissions(this);
 
-//		 String fileName = "/mnt/sdcard/1.mp3";
+            //verifyStoragePermissions(this);
 
-        if (fileName.length() > 3) {
+    //		 String fileName = "/mnt/sdcard/1.mp3";
 
-            curPlayFile = fileName;
+            if (fileName.length() > 3) {
 
-            play(curPlayFile);
+                curPlayFile = fileName;
 
-            Timer timer = new Timer();
-            timerTask = new Task();
-            timer.schedule(timerTask, 1000, 1000);
+                play(curPlayFile);
 
-            cb2.setOnCheckedChangeListener(new IndexCycle());
-            getFileList();
-        }
+                Timer timer = new Timer();
+                timerTask = new Task();
+                timer.schedule(timerTask, 1000, 1000);
 
-        mReceiver = new HeadSetReceiver();
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_HEADSET_PLUG);
-        intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
-        registerReceiver(mReceiver, intentFilter);
-        Log.d(TAG, "registerReceiver  ACTION_CONNECTION_STATE_CHANGED");
+                cb2.setOnCheckedChangeListener(new IndexCycle());
+                getFileList();
+            }
+        }catch(Exception e) {}
 
-//        AudioManager audiomanage = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
-//        PackageManager packageManager = getPackageManager();
-//        //packageManager.setComponentEnabledSetting(PackageManager.COMPONENT_ENABLED_STATE_ENABLED,packageManager.DONT_KILL_APP);
-//        MediaSessionCompat mediaSessionCompat = MediaSessionCompat.fromMediaSession(this,"mbr");
-
-        registerReceiver(new BroadcastReceiver() {
+        mBtReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
@@ -266,7 +278,21 @@ public class MainActivity extends Activity {
                     }
                 }
             }
-        }, new IntentFilter(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)); //蓝牙耳机连接状态
+        };
+        mReceiver = new HeadSetReceiver();
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_HEADSET_PLUG);
+        intentFilter.addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED);
+        registerReceiver(mReceiver, intentFilter);
+        Log.d(TAG, "registerReceiver  ACTION_CONNECTION_STATE_CHANGED");
+
+//        AudioManager audiomanage = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+//        PackageManager packageManager = getPackageManager();
+//        //packageManager.setComponentEnabledSetting(PackageManager.COMPONENT_ENABLED_STATE_ENABLED,packageManager.DONT_KILL_APP);
+//        MediaSessionCompat mediaSessionCompat = MediaSessionCompat.fromMediaSession(this,"mbr");
+
+
+        registerReceiver(mBtReceiver, new IntentFilter(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)); //蓝牙耳机连接状态
 
         ComponentName mbr = new ComponentName(getPackageName(),MediaButtonReceiver.class.getName());
         mMediaSession = new MediaSessionCompat(this,"mbr",mbr,null);
@@ -320,21 +346,40 @@ public class MainActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
+
+
+    // Storage Permissions
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
     private static String[] PERMISSIONS_STORAGE = {
-            "android.permission.READ_EXTERNAL_STORAGE",
-//            "android.permission.WRITE_EXTERNAL_STORAGE",
-//            "android.permission.MANAGE_EXTERNAL_STORAGE"
-            };
-    public void verifyStoragePermissions(Activity activity) {
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
 
-        try {
-            //检测是否有写的权限
-            int permission = ActivityCompat.checkSelfPermission(activity,"android.permission.READ_EXTERNAL_STORAGE");
-            if (permission != PackageManager.PERMISSION_GRANTED) {
-                // 没有写的权限，去申请写的权限，会弹出对话框
-                ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,REQUEST_EXTERNAL_STORAGE);
-            }
+    /**
+     * Checks if the app has permission to write to device storage
+     *
+     * If the app does not has permission then the user will be prompted to grant permissions
+     *
+     * @param activity
+     */
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    public static void verifyStoragePermissions(Activity activity) {
+        // Check if we have write permission
+        int permission = ActivityCompat.checkSelfPermission(activity, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+
+        String[] permissions = {
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE"
+        };
+//        int requestCode = 200;
+//        requestPermissions(permissions, requestCode);
+        if (permission != PackageManager.PERMISSION_GRANTED) {
+            // We don't have permission so prompt the user
+            ActivityCompat.requestPermissions(
+                    activity,
+                    PERMISSIONS_STORAGE,
+                    REQUEST_EXTERNAL_STORAGE
+            );
             if ( Build.VERSION.SDK_INT >= Build.VERSION_CODES.S // > 31
                    && ActivityCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 Log.d(TAG, "Permissions error ");
@@ -343,10 +388,29 @@ public class MainActivity extends Activity {
                 requestList.add(Manifest.permission.BLUETOOTH_CONNECT);
                 ActivityCompat.requestPermissions(activity,requestList.toArray(new String[0]), 1);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
+//    public void verifyStoragePermissions(Activity activity) {
+//
+//        try {
+//            //检测是否有写的权限
+//            int permission = ActivityCompat.checkSelfPermission(activity,"android.permission.READ_EXTERNAL_STORAGE");
+//            if (permission != PackageManager.PERMISSION_GRANTED) {
+//                // 没有写的权限，去申请写的权限，会弹出对话框
+//                ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,REQUEST_EXTERNAL_STORAGE);
+//            }
+//            if ( Build.VERSION.SDK_INT >= Build.VERSION_CODES.S // > 31
+//                   && ActivityCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+//                Log.d(TAG, "Permissions error ");
+//                List<String> requestList = new ArrayList<String>();
+//                requestList.add(Manifest.permission.BLUETOOTH_ADVERTISE);
+//                requestList.add(Manifest.permission.BLUETOOTH_CONNECT);
+//                ActivityCompat.requestPermissions(activity,requestList.toArray(new String[0]), 1);
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//    }
     //在onCreate()方法中调用该方法即可
 
     private void getFileList() {
@@ -399,11 +463,14 @@ public class MainActivity extends Activity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if(seekBar != null ) seekBar.setProgress(mPlayer.getCurrentPosition());
-                            int duration = mPlayer.getDuration() / 1000;
-                            int curPos = mPlayer.getCurrentPosition() / 1000;
-                            if(tv2 != null) tv2.setText(( curPos > 60 ? ( curPos/60+":"+curPos%60):(curPos)) + "/" + (duration > 60 ? (duration / 60 +":"+ duration %60):(duration)));
-                        }
+                            try{
+                                if(seekBar != null ) seekBar.setProgress(mPlayer.getCurrentPosition());
+                                int duration = mPlayer.getDuration() / 1000;
+                                int curPos = mPlayer.getCurrentPosition() / 1000;
+                                if(tv2 != null) tv2.setText(( curPos > 60 ? ( curPos/60+":"+curPos%60):(curPos)) + "/" + (duration > 60 ? (duration / 60 +":"+ duration %60):(duration)));
+
+                            }catch (Exception e){}
+                            }
                     });
                 }
             }
@@ -501,12 +568,10 @@ public class MainActivity extends Activity {
     }
     @Override
     protected void onDestroy() {
-
-        if (mPlayer != null) {
-            mPlayer.pause();
-            mPlayer.release();
-            mPlayer = null;
-        }
+        if(mBtReceiver != null)
+            unregisterReceiver(mBtReceiver);
+        if(mReceiver != null)
+            unregisterReceiver(mReceiver);
         if(timer != null)
         {
             timer.cancel();
@@ -517,7 +582,11 @@ public class MainActivity extends Activity {
             timerTask.cancel();
             timerTask = null;
         }
-        unregisterReceiver(mReceiver);
+        if (mPlayer != null) {
+            mPlayer.pause();
+            mPlayer.release();
+            mPlayer = null;
+        }
         super.onDestroy();
 
     }

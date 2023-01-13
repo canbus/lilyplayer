@@ -4,8 +4,8 @@
     package="com.bao.lilyplayer">
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-<!--    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>-->
-<!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>-->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
     <!-- Request legacy Bluetooth permissions on older devices. -->
     <uses-permission android:name="android.permission.BLUETOOTH"    android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"  android:maxSdkVersion="30" />
@@ -24,6 +24,10 @@
         android:supportsRtl="true"
 
         tools:targetApi="31">
+
+        <meta-data
+            android:name="ScopedStorage"
+            android:value="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
